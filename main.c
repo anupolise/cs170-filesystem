@@ -28,35 +28,68 @@ int make_fs(char *disk_name) {
 }
 
 int mount_fs(char *disk_name) {
-	for (int i = 0; i < MAX_FILE_COUNT; i++) {
-		directory[i].fileName = NULL;
-		directory[i].startBlock = -1;
-		directory[i].permission = 0;
+	open_disk(disk_name);
+	// for (int i = 0; i < MAX_FILE_COUNT; i++) {
+	// 	directory[i].fileName = NULL;
+	// 	directory[i].startBlock = -1;
+	// 	directory[i].permission = 0;
+	// }
+	//
+	// for (int i = 0; i < ENTRIES; i++) {
+	// 	FAT[i]= -1;
+	// }
+
+	char* metadata = malloc(BLOCK_SIZE);
+	block_read(0,metadata);
+
+	for(int i = 0; i<MAX_FILE_COUNT; i++){
+		if (i == 0)
+			printf("yo: %d\n", (int)metadata[i*12+4]);
+
+		directory[i].fileName = (char*)metadata[i*12];
+		directory[i].startBlock = *(int*)metadata[i*12+4];
+		directory[i].permission = *(int*)metadata[i*12+8];
 	}
 
-	for (int i = 0; i < ENTRIES; i++) {
-		FAT[i].block = NULL;
-		FAT[i].next = -1;
+	for(int i=1; i<5; i++){
+		block_read(i,metadata);
+		for(int j=0; j<1024; j++){
+			FAT[(i-1) * 1024 + j] = (int)metadata[j*4];
+		}
 	}
-
 	// read metadata from disk
 }
 
 int umount_fs(char *disk_name) {
-	for (int i = 0; i < MAX_FILE_COUNT; i++) {
-		directory[i].fileName = NULL;
-		directory[i].startBlock = -1;
-		directory[i].permission = 0;
-	}
+		char* bufBytes = malloc(BLOCK_SIZE);
 
-	for (int i = 0; i < ENTRIES; i++) {
-		free (FAT[i].block);
-		FAT[i].next = -1;
-	}
+		for(int i=0; i<MAX_FILE_COUNT; i++){
+			if (directory[i].fileName != NULL)
+				memcpy(bufBytes+i*12, directory[i].fileName,4);
+			if (i == 0)
+				printf("ysdsjkd: %d\n", directory[i].startBlock);
+			sprintf(bufBytes+i*12+4, directory[i].startBlock, 4);
+			sprintf(bufBytes+i*12+8, directory[i].permission, 4);
+		}
+
+		int counterBlock = 0;
+		for(int i=0; i<ENTRIES; i++){
+			if((i*4)%4096 == 0)
+				block_write(counterBlock,bufBytes);
+			memcpy(bufBytes+((i*4)%4096), &FAT[i],4);
+		}
+		close_disk();
 }
 
 int main () {
 	make_fs(DISK_TITLE);
 	mount_fs(DISK_TITLE);
+
+	directory[0].startBlock = 10;
+	directory[0].permission = 9;
+
+	umount_fs(DISK_TITLE);
+	mount_fs(DISK_TITLE);
+
 	return 0;
 }
