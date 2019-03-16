@@ -1,88 +1,125 @@
 #include <stdlib.h>		/* for exit() */
 #include <stdio.h> 		/* standard buffered input/output */
-#include <setjmp.h> 	/* for performing non-local gotos with setjmp/longjmp */
-#include <sys/time.h> 	/* for setitimer */
-#include <signal.h> 	/* for sigaction */
-#include <unistd.h> 	/* for pause */
+#include <string.h> 	/* for pause */
 #include "disk.h"
 
-#define MAX_FILE_COUNT 	64
-#define BLOCK_SIZE 		4096
-#define ENTRIES 		4096
-#define DISK_TITLE		"disk.txt"
+#define FILE_COUNT	64
+#define BLOCK_SIZE	4096
+#define BLOCK_COUNT	4096
+#define DISK_TITLE	"disk.txt"
 
-struct DirectoryEntry {
-	char* fileName;
-	int startBlock;
+struct File {
+	char* filename;
+	int startblock;
 	int permission;
 };
 
 // Global variables
-struct DirectoryEntry directory[MAX_FILE_COUNT];
-int FAT[ENTRIES];
+struct File DIR[FILE_COUNT];
+int FAT[BLOCK_COUNT];
 
 
-// Function definitions
+int make_fs(char* disk_name);
+int mount_fs(char* disk_name);
+int umount_fs(char* disk_name);
+
+
 int make_fs(char *disk_name) {
-	return make_disk(disk_name);
+	int success = make_disk(disk_name);
+
+	if (success >= 0) {
+		mount_fs(disk_name);
+
+		// Metadata: set Directory values to default
+		for (int i = 0; i < FILE_COUNT; i++) {
+			DIR[i].filename = "";
+			DIR[i].startblock = -1;
+			DIR[i].permission = 0;
+		}
+
+		// Metadata: set FAT values to default
+		for (int i = 0; i < BLOCK_COUNT; i++)
+			FAT[i] = -1;
+
+		umount_fs(disk_name);
+	}
+
+	return success;
 }
 
 int mount_fs(char *disk_name) {
 	open_disk(disk_name);
-	char* metadata = malloc(BLOCK_SIZE);
-	block_read(0,metadata);
+	char* buffer = malloc(BLOCK_SIZE);
 
-	for(int i = 0; i<MAX_FILE_COUNT; i++){
-		directory[i].fileName = (char*)metadata+i*12;
-		directory[i].startBlock = *(int*)metadata+i*12+4;
-		directory[i].permission = *(int*)metadata+i*12+8;
+	// load DIR metadata
+	memset(buffer, 0, BLOCK_SIZE);
+	block_read(0, buffer);
+	memcpy(DIR, buffer, sizeof(DIR));
+
+	// load FAT metadata
+	for(int i = 0; i < 4; i++){
+		memset(buffer, 0, BLOCK_SIZE);
+		block_read(i + 1, buffer);
+		memcpy(FAT + i * BLOCK_SIZE / 4, buffer, BLOCK_SIZE);
 	}
 
-	for(int i=1; i<5; i++){
-		block_read(i,metadata);
-		for(int j=0; j<1024; j++){
-			FAT[(i-1) * 1024 + j] = (int)metadata[j*4];
-		}
-	}
+	free(buffer);
 }
 
 int umount_fs(char *disk_name) {
-		char* bufBytes = malloc(BLOCK_SIZE);
+	char* buffer = malloc(BLOCK_SIZE);
 
-		for(int i=0; i<MAX_FILE_COUNT; i++){
-			if (directory[i].fileName != NULL)
-				memcpy(bufBytes+i*12, directory[i].fileName,4);
+	// store DIR metadata
+	memset(buffer, 0, BLOCK_SIZE);
+	memcpy(buffer, DIR, sizeof(DIR));
+	block_write(0, buffer);
 
-			memcpy(bufBytes+i*12+4, &directory[i].startBlock, 4);
-			memcpy(bufBytes+i*12+8, &directory[i].permission, 4);
-		}
+	// store FAT metadata
+	for(int i = 0; i < 4; i++) {
+		memset(buffer, 0, BLOCK_SIZE);
+		memcpy(buffer, (char*)FAT + i * BLOCK_SIZE, BLOCK_SIZE);
+		block_write(i + 1, buffer);
+	}
 
-		int counterBlock = 0;
-		for(int i=0; i<ENTRIES; i++){
-			if((i*4)%4096 == 0) {
-				block_write(counterBlock, bufBytes);
-				counterBlock++;
-			}
-			memcpy(bufBytes+((i*4)%4096), &FAT[i], 4);
-		}
-		close_disk();
+	free(buffer);
+	close_disk();
 }
+
+
 
 int main () {
 	make_fs(DISK_TITLE);
 	mount_fs(DISK_TITLE);
 
-	directory[0].fileName = "123";
-	directory[0].startBlock = 10;
-	directory[0].permission = 9;
 
-	directory[1].fileName = "456";
-	directory[1].startBlock = 756;
-	directory[1].permission = 12324;
+	//-----------------------------------Changes--------------------------------
+	for (int i = 0; i < 3; i++)
+		FAT[i] = 5;
+
+	DIR[0].filename = "dog.txt";
+	DIR[0].startblock = 0;
+	DIR[0].permission = 1;
+
+	DIR[1].filename = "cat.py";
+	DIR[1].startblock = 7;
+	DIR[1].permission = 2;
+	//-----------------------------------Changes--------------------------------
+
 
 	umount_fs(DISK_TITLE);
 	mount_fs(DISK_TITLE);
 
-	while(1);
+
+	//-----------------------------------Testing--------------------------------
+	printf("FAT 0: %d\n", FAT[0]);
+	printf("FAT 1: %d\n", FAT[1]);
+	printf("FAT 2: %d\n", FAT[2]);
+	printf("FAT 3: %d\n", FAT[3]);
+	printf("DIR 0: %s, %d, %d\n", DIR[0].filename, DIR[0].startblock, DIR[0].permission);
+	printf("DIR 1: %s, %d, %d\n", DIR[1].filename, DIR[1].startblock, DIR[1].permission);
+	printf("DIR 2: %s, %d, %d\n", DIR[2].filename, DIR[2].startblock, DIR[2].permission);
+	printf("DIR 3: %s, %d, %d\n", DIR[3].filename, DIR[3].startblock, DIR[3].permission);
+	//-----------------------------------Testing--------------------------------
+
 	return 0;
 }
