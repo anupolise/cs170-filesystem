@@ -13,6 +13,7 @@ struct File {
 	char* filename;
 	int startblock;
 	int permission;
+	int finaloffset;
 };
 
 struct FD {
@@ -59,6 +60,7 @@ int make_fs(char *disk_name) {
 			DIR[i].filename = NULL;
 			DIR[i].startblock = -1;
 			DIR[i].permission = 0;
+			DIR[i].finaloffset = 0;
 		}
 
 		// Metadata: set FAT values to default
@@ -158,21 +160,13 @@ int fs_create(char* filename) {
 	for (int i = 0; i < FILE_COUNT; i++) {
 		if (DIR[i].filename == NULL) {
 			int available_block = get_available_block();
-			printf("availdable block: %d\n", available_block);
 			if (available_block == -1) return -1;
 
 			DIR[i].filename = filename;
 			DIR[i].startblock = available_block;
 			DIR[i].permission = 0;
+			DIR[i].finaloffset = 0;
 			FAT[available_block] = -2;
-
-			//----------testing----------
-			char* buffer = malloc(BLOCK_SIZE);
-			strncpy(buffer, "hello123", 8);
-			block_write(available_block, buffer);
-			free(buffer);
-			//----------testing----------
-
 			return 0;
 		}
 	}
@@ -242,13 +236,73 @@ int fs_read(int filedes, void *buf, size_t nbyte){
 		memcpy(bufptr, temp_buf, nbyte);
 		FDS[filedes].offset = nbyte;
 	}
+
+	free(temp_buf);
+}
+
+
+int fs_write(int filedes, void *buf, size_t nbyte) {
+	if (FDS[filedes].status == -1) return -1;
+
+	void* buf_block = buf;
+	void* temp_buf = malloc(BLOCK_SIZE);
+	int bytewrite = BLOCK_SIZE - FDS[filedes].offset;
+	if (nbyte < bytewrite) bytewrite = nbyte;
+
+	int currblock = FDS[filedes].startblock;
+	int currOffset = FDS[filedes].offset;
+	int done = 0;
+
+	while (!done) {
+		memset(temp_buf, 0, BLOCK_SIZE);
+
+		// read current block and combine new buffer data
+		block_read(currblock, temp_buf);
+		memcpy(temp_buf + currOffset, buf_block, bytewrite);
+
+		// write data to block
+		block_write(currblock, temp_buf);
+
+		// set counters and offsets for next iteration
+		nbyte -= bytewrite;
+		buf_block = buf_block + bytewrite;
+
+		if (nbyte >= BLOCK_SIZE) {
+			bytewrite = BLOCK_SIZE;
+		}
+		else {
+			FDS[filedes].offset = currOffset + bytewrite;
+			bytewrite = nbyte;
+		}
+
+		currOffset = 0;
+		if (bytewrite == 0) {
+			done = 1;
+			continue;
+		}
+
+		// expand file blocks if necessary
+		if (FAT[currblock] < 0) {
+			int temp  = currblock;
+			currblock = get_available_block();
+			if (currblock == -1) return -1;
+			FAT[temp] = currblock;
+			FAT[currblock] = -2;
+		}
+		else {
+			currblock = FAT[currblock];
+		}
+	}
+
+	FDS[filedes].startblock = currblock;
+	return 0;
 }
 
 // get string length
 int len(char* string) {
-	// int count = 0;
-	// while (string[count++] != '\0');
-	// return count - 1;
+	int count = 0;
+	while (string[count++] != '\0');
+	return count - 1;
 	return 0;
 }
 
@@ -287,14 +341,48 @@ int main() {
 	fs_create("bye.txt");
 	fs_create("checkstringlargerthan15");
 
-	int fd = fs_open("hello.txt");
+	int fd1 = fs_open("hello.txt");
+	int fd2 = fs_open("hello.txt");
 
-	char* buffer = malloc(BLOCK_SIZE);
+	char* buffer = malloc(6144);
 
-	fs_read(fd, buffer, 3);
-	printf("first string: %s\n", buffer);
-	fs_read(fd, buffer, 3);
-	printf("seocnd string: %s\n", buffer);
+	for (int i = 0; i < 6144; i++) {
+		if (i < 4096)
+			strncpy(buffer + i, "a", 1);
+		else
+			strncpy(buffer + i, "b", 1);
+	}
+	fs_write(fd1, buffer, 6144);
+
+	memset(buffer, 0, 6144);
+	block_read(0, buffer);
+	printf("block string: %s\n", buffer);
+	printf("FAT: %d\n", FAT[0]);
+
+	memset(buffer, 0, 6144);
+	block_read(FAT[0], buffer);
+	printf("block string: %s\n", buffer);
+
+	for(int i = 0; i<15; i++){
+		strncpy(buffer+i, "c", 1);
+	}
+
+	printf("FD 0: %d, %d\n", FDS[0].startblock, FDS[0].offset);
+
+	fs_write(fd1, buffer, 15);
+	printf("FD 0: %d, %d\n", FDS[0].startblock, FDS[0].offset);
+
+	memset(buffer, 0, 6144);
+	block_read(FAT[0], buffer);
+	printf("block string: %s\n", buffer);
+
+	// memset(buffer, 0, 6144);
+	// fs_read(fd2, buffer, 4096);
+	// printf("first string: %s\n", buffer);
+
+	// memset(buffer, 0, 6144);
+	// fs_read(fd2, buffer, 6144 - 4096);
+	// printf("seocnd string: %s\n", buffer);
 	
 
 
