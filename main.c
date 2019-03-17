@@ -202,35 +202,46 @@ int fs_delete(char* filename) {
 }
 
 int fs_read(int filedes, void *buf, size_t nbyte){
-	printf("1\n");
 	if(FDS[filedes].status == -1)
 		return -1;
 
-	printf("1\n");
 	void *bufptr = buf;
-	if(FDS[filedes].offset!=0){
-		char* temp_buf = malloc(BLOCK_SIZE);
+	char* temp_buf = malloc(BLOCK_SIZE);
+	memset(temp_buf, 0, sizeof(temp_buf));
+
+	// reading first block (starting offset)
+	if(FDS[filedes].offset != 0){
 		block_read(FDS[filedes].startblock, temp_buf);
-		memcpy(bufptr, temp_buf+FDS[filedes].offset, BLOCK_SIZE-FDS[filedes].offset);
-		nbyte-= BLOCK_SIZE-FDS[filedes].offset;
-		bufptr+=BLOCK_SIZE-FDS[filedes].offset;
-	}
-	printf("2\n");
 
-	while(nbyte>BLOCK_SIZE && FDS[filedes].startblock!=-1 && FDS[filedes].startblock!=-2){
+		if (nbyte > BLOCK_SIZE - FDS[filedes].offset) {
+			memcpy(bufptr, temp_buf + FDS[filedes].offset, BLOCK_SIZE - FDS[filedes].offset);
+			nbyte = nbyte - (BLOCK_SIZE - FDS[filedes].offset);
+		}
+		else {
+			memcpy(bufptr, temp_buf + FDS[filedes].offset, nbyte);
+			FDS[filedes].offset = FDS[filedes].offset + nbyte;
+			return 0;
+		}
+
+		nbyte = BLOCK_SIZE - nbyte;
+		bufptr += BLOCK_SIZE - FDS[filedes].offset;
+	}
+
+	// reading entire blocks
+	while(nbyte > BLOCK_SIZE && FDS[filedes].startblock != -1 && FDS[filedes].startblock != -2){
 		block_read(FDS[filedes].startblock, bufptr);
-		nbyte-=BLOCK_SIZE;
+		nbyte -= BLOCK_SIZE;
 		FDS[filedes].startblock = FAT[FDS[filedes].startblock];
-		bufptr+=BLOCK_SIZE;
+		bufptr += BLOCK_SIZE;
 	}
-	printf("3\n");
 
+	// reading last block (up to nbyte)
+	memset(temp_buf, 0, sizeof(temp_buf));
 	if(FDS[filedes].startblock >= 0){
-		block_read(FDS[filedes].startblock, bufptr);
+		block_read(FDS[filedes].startblock, temp_buf);
+		memcpy(bufptr, temp_buf, nbyte);
 		FDS[filedes].offset = nbyte;
 	}
-	
-	
 }
 
 // get string length
@@ -277,8 +288,9 @@ int main() {
 	fs_create("checkstringlargerthan15");
 
 	int fd = fs_open("hello.txt");
-	printf("helo\n");
+
 	char* buffer = malloc(BLOCK_SIZE);
+
 	fs_read(fd, buffer, 3);
 	printf("first string: %s\n", buffer);
 	fs_read(fd, buffer, 3);
