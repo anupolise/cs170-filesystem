@@ -25,7 +25,9 @@ int make_fs(char *disk_name) {
 }
 
 int mount_fs(char *disk_name) {
-	open_disk(disk_name);
+	int res = open_disk(disk_name);
+	if (res < 0) return res;
+
 	char* buffer = malloc(BLOCK_SIZE);
 
 	// load DIR metadata
@@ -65,7 +67,7 @@ int mount_fs(char *disk_name) {
 	}
 
 	free(buffer);
-	return 0;
+	return res;
 }
 
 int umount_fs(char *disk_name) {
@@ -99,8 +101,7 @@ int umount_fs(char *disk_name) {
 	}
 
 	free(buffer);
-	close_disk();
-	return 0;
+	return close_disk();
 }
 
 int fs_open(char* filename) {
@@ -165,7 +166,6 @@ int fs_delete(char* filename) {
 
 	}
 		
-
 	int nextblock = get_start_block(filename); 
 	if (nextblock == -1)
 		return -1;
@@ -315,7 +315,8 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 
 
 int fs_get_filesize(int filedes) {
-
+	if (FDS[filedes].status == -1) return -1;
+	
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
 		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
@@ -333,6 +334,9 @@ int fs_get_filesize(int filedes) {
 }
 
 int fs_lseek(int filedes, off_t offset) {
+	if (FDS[filedes].status == -1) return -1;
+	if(offset<0) return -1;
+
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
 		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
@@ -356,6 +360,7 @@ int fs_lseek(int filedes, off_t offset) {
 }
 
 int fs_truncate(int filedes, off_t length) {
+	if (FDS[filedes].status == -1) return -1;
     
     //if length greater than file size, jump to end 
     if(length > fs_get_filesize(filedes)){
