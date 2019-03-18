@@ -1,7 +1,7 @@
 all: compile
 
 compile:
-	gcc -c -o disk.o disk.c -g
+	#gcc -c -o disk.o disk.c -g
 	gcc -c -o fs.o fs.c -g
 
 test:

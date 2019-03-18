@@ -31,20 +31,14 @@ int mount_fs(char *disk_name) {
 	char* buffer = malloc(BLOCK_SIZE);
 
 	// load DIR metadata
-	// memset(buffer, 0, BLOCK_SIZE);
-	// block_read(0, buffer);
-	// memcpy(DIR, buffer, sizeof(DIR));
-
 	char* buffer1 = buffer;
 	memset(buffer, 0, BLOCK_SIZE);
 	block_read(4096, buffer);
 	for (int i = 0; i < FILE_COUNT; i++) {
-		// strcpy(DIR[i].filename, buffer + i * 27, 15);
 		memcpy(DIR[i].filename, buffer + i * 27, 15);
 		DIR[i].startblock = *(int*)(buffer + i * 27 + 15);
 		DIR[i].permission = *(int*)(buffer + i * 27 + 19);
 		DIR[i].finaloffset = *(int*)(buffer + i * 27 + 23);
-		// printf("");
 	}
 
 	char* testbuf = malloc(BLOCK_SIZE);
@@ -74,22 +68,13 @@ int umount_fs(char *disk_name) {
 	char* buffer = malloc(BLOCK_SIZE);
 
 	// store DIR metadata
-	// memset(buffer, 0, BLOCK_SIZE);
-	// memcpy(buffer, DIR, sizeof(DIR));
-	// block_write(0, buffer);
 	memset(buffer, 0, BLOCK_SIZE);
 	for (int i = 0; i < FILE_COUNT; i++) {
 		for (int k = 0; k < 15; k++)
 			strncpy(buffer + i * 27 + k, DIR[i].filename + k, 1);
-		// printf("bno: %s\n", buffer);
 		memcpy(buffer + i * 27 + 15, (char*) &DIR[i].startblock, 4);
 		memcpy(buffer + i * 27 + 19, (char*) &DIR[i].permission, 4);
 		memcpy(buffer + i * 27 + 23, (char*) &DIR[i].finaloffset, 4);
-		// printf("filename, %s\n", DIR[i].filename);
-		// buffer[i * 27] = DIR[i].filename;
-		// buffer[i * 27 + 15] = DIR[i].startblock;
-		// buffer[i * 27 + 4] = DIR[i].permission;
-		// buffer[i * 27 + 4] = DIR[i].finaloffset;
 	}
 	block_write(4096, buffer);
 
@@ -161,6 +146,7 @@ int fs_delete(char* filename) {
 	char strbuf[15];
 	strcpy(strbuf, filename);
 
+	//check for any open file desc
 	for (int i = 0; i < DESC_COUNT; i++){
 		if (strcmp(FDS[i].filename, strbuf) == 0)
 			return -1;
@@ -180,7 +166,7 @@ int fs_delete(char* filename) {
 		FAT[temp] = -1;
 	}
 
-
+	//removes file entry from DIR 
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
 		if (strcmp(DIR[i].filename, filename) == 0)
@@ -196,8 +182,10 @@ int fs_delete(char* filename) {
 
 
 int fs_read(int filedes, void *buf, size_t nbyte) {
+	//if fd is not open, negative or more than 32 fds open --> return
 	if (filedes < 0 || filedes >= 32 || FDS[filedes].status == -1) return -1;
 
+	//find corresponding DIR entry
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
 		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
@@ -208,7 +196,7 @@ int fs_read(int filedes, void *buf, size_t nbyte) {
 	void* temp_buf = malloc(BLOCK_SIZE);
 
 	int totalread = 0;
-	int byteread = BLOCK_SIZE - FDS[filedes].offset;
+	int byteread = BLOCK_SIZE - FDS[filedes].offset; //how many bytes to read on currblock
 	if (nbyte < byteread) byteread = nbyte;
 
 	int currblock = FDS[filedes].startblock;
@@ -259,6 +247,7 @@ int fs_read(int filedes, void *buf, size_t nbyte) {
 int fs_write(int filedes, void *buf, size_t nbyte) {
 	if (filedes < 0 || filedes >= 32 || FDS[filedes].status == -1) return -1;
 
+	//find corresponding DIR entry
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
 		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
@@ -380,7 +369,10 @@ int fs_truncate(int filedes, off_t length) {
         return -1;
     }
 
-    fs_lseek(filedes, length);
+   	int res = fs_lseek(filedes, length);
+	if(res == -1) return -1; //length truncate is larger than filesize
+
+	//truncates the new last block
     char* buffer = malloc(BLOCK_SIZE);
     char* buf = malloc(BLOCK_SIZE);
     memset(buffer, 0, BLOCK_SIZE);
@@ -389,6 +381,7 @@ int fs_truncate(int filedes, off_t length) {
     strncpy(buf, buffer, FDS[filedes].offset);
     block_write(FDS[filedes].startblock, buf);
 
+	//if currblock(new last block) is EOF, return
     int currblock =  FDS[filedes].startblock;
     if(currblock == -2){
         return 0;
@@ -399,8 +392,10 @@ int fs_truncate(int filedes, off_t length) {
 		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
 			fileindex = i;
 	if (fileindex == -1) return -1;
+
 	DIR[fileindex].finaloffset = FDS[filedes].offset;
 
+	//loop - free all blocks after new last block
     int temp = FAT[currblock];
     FAT[currblock] = -2;
     currblock = temp;
