@@ -11,7 +11,7 @@
 #define DESC_COUNT	32
 
 struct File {
-	char* filename;
+	char filename[15];
 	int startblock;
 	int permission;
 	int finaloffset;
@@ -21,7 +21,7 @@ struct FD {
 	int status;
 	int startblock;
 	int offset;
-	char* filename;
+	char filename[15];
 };
 
 // Global variables

@@ -29,15 +29,30 @@ int mount_fs(char *disk_name) {
 	char* buffer = malloc(BLOCK_SIZE);
 
 	// load DIR metadata
+	// memset(buffer, 0, BLOCK_SIZE);
+	// block_read(0, buffer);
+	// memcpy(DIR, buffer, sizeof(DIR));
+
+	char* buffer1 = buffer;
 	memset(buffer, 0, BLOCK_SIZE);
-	block_read(0, buffer);
-	printf("dir size %d\n", sizeof(DIR));
-	memcpy(DIR, buffer, sizeof(DIR));
+	block_read(4096, buffer);
+	for (int i = 0; i < FILE_COUNT; i++) {
+		// strcpy(DIR[i].filename, buffer + i * 27, 15);
+		memcpy(DIR[i].filename, buffer + i * 27, 15);
+		DIR[i].startblock = *(int*)(buffer + i * 27 + 15);
+		DIR[i].permission = *(int*)(buffer + i * 27 + 19);
+		DIR[i].finaloffset = *(int*)(buffer + i * 27 + 23);
+		// printf("");
+	}
+
+	char* testbuf = malloc(BLOCK_SIZE);
+	block_read(0, testbuf);
+
 
 	// load FAT metadata
 	for(int i = 0; i < 4; i++){
 		memset(buffer, 0, BLOCK_SIZE);
-		block_read(i + 1, buffer);
+		block_read(i + 4097, buffer);
 		memcpy(FAT + i * BLOCK_SIZE / 4, buffer, BLOCK_SIZE);
 	}
 
@@ -57,15 +72,30 @@ int umount_fs(char *disk_name) {
 	char* buffer = malloc(BLOCK_SIZE);
 
 	// store DIR metadata
+	// memset(buffer, 0, BLOCK_SIZE);
+	// memcpy(buffer, DIR, sizeof(DIR));
+	// block_write(0, buffer);
 	memset(buffer, 0, BLOCK_SIZE);
-	memcpy(buffer, DIR, sizeof(DIR));
-	block_write(0, buffer);
+	for (int i = 0; i < FILE_COUNT; i++) {
+		for (int k = 0; k < 15; k++)
+			strncpy(buffer + i * 27 + k, DIR[i].filename + k, 1);
+		// printf("bno: %s\n", buffer);
+		memcpy(buffer + i * 27 + 15, (char*) &DIR[i].startblock, 4);
+		memcpy(buffer + i * 27 + 19, (char*) &DIR[i].permission, 4);
+		memcpy(buffer + i * 27 + 23, (char*) &DIR[i].finaloffset, 4);
+		// printf("filename, %s\n", DIR[i].filename);
+		// buffer[i * 27] = DIR[i].filename;
+		// buffer[i * 27 + 15] = DIR[i].startblock;
+		// buffer[i * 27 + 4] = DIR[i].permission;
+		// buffer[i * 27 + 4] = DIR[i].finaloffset;
+	}
+	block_write(4096, buffer);
 
 	// store FAT metadata
 	for(int i = 0; i < 4; i++) {
 		memset(buffer, 0, BLOCK_SIZE);
 		memcpy(buffer, (char*)FAT + i * BLOCK_SIZE, BLOCK_SIZE);
-		block_write(i + 1, buffer);
+		block_write(i + 4097, buffer);
 	}
 
 	free(buffer);
@@ -74,27 +104,22 @@ int umount_fs(char *disk_name) {
 }
 
 int fs_open(char* filename) {
-	printf("fs_open 0\n");
 	int startblock = get_start_block(filename);
-	printf("fs_open 1\n");
 
 	// Error if file doesn't exists
 	if (startblock == -1) return -1;
-	printf("fs_open 2\n");
 
 	for (int i = 0; i < DESC_COUNT; i++) {
 		if (FDS[i].startblock == -1) {
-	printf("fs_open 3\n");
 			FDS[i].startblock = startblock;
 			FDS[i].offset = 0;
 			FDS[i].status = 0;
 			strcpy(FDS[i].filename, filename);
-	printf("fs_open 4\n");
 			return i;
 		}
 	}
 
-	printf("Too many files open.\n");
+	// printf("Too many files open.\n");
 	return -1;
 }
 
@@ -115,7 +140,7 @@ int fs_create(char* filename) {
 		return -1;
 
 	for (int i = 0; i < FILE_COUNT; i++) {
-		if (DIR[i].filename == NULL) {
+		if (DIR[i].filename[0] == '\0') {
 			int available_block = get_available_block();
 			if (available_block == -1) return -1;
 
@@ -131,8 +156,11 @@ int fs_create(char* filename) {
 }
 
 int fs_delete(char* filename) {
+	char strbuf[15];
+	strcpy(strbuf, filename);
+
 	for (int i = 0; i < DESC_COUNT; i++)
-		if (FDS[i].filename != NULL && strcmp(FDS[i].filename, filename) == 0)
+		if (FDS[i].filename[0] != '\0'&& strcmp(FDS[i].filename, strbuf) == 0)
 			return -1;
 
 	int nextblock = get_start_block(filename); 
@@ -212,7 +240,7 @@ int fs_read(int filedes, void *buf, size_t nbyte) {
 
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
-		if (DIR[i].filename == FDS[filedes].filename)
+		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
 			fileindex = i;
 	if (fileindex < 0) return -1;
 
@@ -273,7 +301,7 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
-		if (DIR[i].filename == FDS[filedes].filename)
+		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
 			fileindex = i;
 	if (fileindex < 0) return -1;
 
@@ -341,7 +369,7 @@ int fs_get_filesize(int filedes) {
 
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
-		if (DIR[i].filename == FDS[filedes].filename)
+		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
 			fileindex = i;
 	
 	int currblock = DIR[fileindex].startblock;
@@ -358,7 +386,7 @@ int fs_get_filesize(int filedes) {
 int fs_lseek(int filedes, off_t offset) {
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
-		if (DIR[i].filename == FDS[filedes].filename)
+		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
 			fileindex = i;
 	
 	int currblock = DIR[fileindex].startblock;
@@ -378,8 +406,55 @@ int fs_lseek(int filedes, off_t offset) {
 	return 0;
 }
 
-int fs_truncate(int fildes, off_t length) {
-	return -1;
+int fs_truncate(int filedes, off_t length) {
+    
+    //if length greater than file size, jump to end 
+    if(length > fs_get_filesize(filedes)){
+        fs_lseek(filedes, fs_get_filesize(filedes));
+        return -1;
+    }
+
+    fs_lseek(filedes, length);
+    char* buffer = malloc(BLOCK_SIZE);
+    char* buf = malloc(BLOCK_SIZE);
+    memset(buffer, 0, BLOCK_SIZE);
+    memset(buf, 0, BLOCK_SIZE);
+    block_read(FDS[filedes].startblock, buffer);
+    strncpy(buf, buffer, FDS[filedes].offset);
+    block_write(FDS[filedes].startblock, buf);
+
+    int currblock =  FDS[filedes].startblock;
+    if(currblock == -2){
+        return 0;
+    }
+
+	int fileindex = -1;
+	for (int i = 0; i < FILE_COUNT; i++)
+		if (strcmp(DIR[i].filename, FDS[filedes].filename) == 0)
+			fileindex = i;
+	if (fileindex == -1) return -1;
+	DIR[fileindex].finaloffset = FDS[filedes].offset;
+
+    int temp = FAT[currblock];
+    FAT[currblock] = -2;
+    currblock = temp;
+    while(currblock >= 0){
+        memset(buffer, 0, BLOCK_SIZE);
+        block_write(currblock, buffer);
+        temp = FAT[currblock];
+        FAT[currblock] = -1;
+        currblock = temp;
+    } 
+    if(currblock!=-2){
+        memset(buffer, 0, BLOCK_SIZE);
+        block_write(currblock, buffer);
+        temp = FAT[currblock];
+        FAT[currblock] = -1;
+        currblock = temp;
+
+    }
+
+    return 0;
 }
 
 
@@ -394,10 +469,11 @@ int len(char* string) {
 
 // get start block of file
 int get_start_block(char* filename) {
-	// printf("startblock: %s\n", DIR[0]);
+	char strbuf[15];
+	strcpy(strbuf, filename);
+
 	for (int i = 0; i < FILE_COUNT; i++) {
-		printf("filename: %s\n", DIR[i].filename);
-		if (strcmp(DIR[i].filename, filename) == 0)
+		if (strcmp(DIR[i].filename, strbuf) == 0)
 			return DIR[i].startblock;
 	}
 

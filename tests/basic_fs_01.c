@@ -3,24 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-void printFAT(int entries){
-    for(int i = 0 ; i<entries; i++){
-        printf("FAT %d: %d\n",i, FAT[i]);
-    }
-}
-
-void printDirectory(int entries){
-     for(int i = 0 ; i<entries; i++){
-        printf("DIR %d: %s block:%d %d %d\n",i, DIR[i].filename, DIR[i].startblock, DIR[i].permission, DIR[i].finaloffset);
-    }
-}
-
-void printFDS(int entries){
-     for(int i = 0 ; i<entries; i++){
-        printf("FDS %d: %s block:%d %d status:%d\n",i, FDS[i].filename, FDS[i].startblock, FDS[i].offset, FDS[i].status);
-    }
-}
-
 int main() {
 	int fildes = 0;
 	int ret = 0;
@@ -55,6 +37,7 @@ int main() {
 	char data[] = "This is my data";
 	int len = strlen(data);
 	ret = fs_write(fildes,data,len);
+
 	if(ret != len) {
 		printf("ERROR: fs_write failed to write correct number of bytes\n");
 	}
