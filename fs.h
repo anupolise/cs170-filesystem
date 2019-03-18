@@ -1,11 +1,34 @@
 #ifndef _FS_H_
 #define _FS_H_
+#include <stdlib.h>		/* for exit() */
+#include <stdio.h> 		/* standard buffered input/output */
+#include <string.h> 	/* for pause */
 #include "disk.h"
-#include <stdio.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+
+#define FILE_COUNT	64
+#define BLOCK_SIZE	4096
+#define BLOCK_COUNT	4096
+#define DESC_COUNT	32
+
+struct File {
+	char* filename;
+	int startblock;
+	int permission;
+	int finaloffset;
+};
+
+struct FD {
+	int status;
+	int startblock;
+	int offset;
+	char* filename;
+};
+
+// Global variables
+struct FD FDS[DESC_COUNT];
+struct File DIR[FILE_COUNT];
+int FAT[BLOCK_COUNT];
+
 
 int make_fs(char *disk_name);
 int mount_fs(char *disk_name);

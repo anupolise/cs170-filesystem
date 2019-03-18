@@ -6,6 +6,7 @@
 
 #define DISK_TITLE "disk.txt"
 #define TEST_FILE1 "hello1.txt"
+#define TEST_FILE2 "hello2.txt"
 
 void printFAT(int entries){
     for(int i = 0 ; i<entries; i++){
@@ -27,10 +28,11 @@ void printFDS(int entries){
 
 
 // Test: write < 1 block + no offset
+// Test: appending to a block (no overflow) + offset
 void test_write1() {
 	int fd = fs_open(TEST_FILE1);
 	char* buffer = malloc(4096);
-
+    char* result_buf = malloc(4096);
 	for (int i = 0; i < 4096; i++) {
         if (i < 10)
             strncpy(buffer + i, "a", 1);
@@ -38,36 +40,113 @@ void test_write1() {
             strncpy(buffer + i, "b", 1);
     }
 
-    fs_write(fd, buffer, 10);
-    block_read(0, buffer);
-    printf("Test Write 1: %s", buffer);
+    fs_write(fd, buffer + 10, 4086);
+    block_read(0, result_buf);
+    printf("Test Write 1 our buf: %s\n", buffer);
+    printf("Test Write 1 block buf: %s\n", result_buf);
 
-	fs_write(fd, buffer + 10, 4086);
-    block_read(0, buffer);
-    printf("Test Write 1: %s", buffer);
 
+	fs_write(fd, buffer, 10);
+    block_read(0, result_buf);
+    printf("Test Write 1: %s\n", result_buf);
+
+    free(result_buf);   
     free(buffer);
 }
 
+//Test: writing more than one block + no offset
 void test_write2() {
-	int fd = fs_open(TEST_FILE1);
+	int fd = fs_open(TEST_FILE2);
 	char* buffer = malloc(6144);
+	char* result_buf = malloc(6144);
+
 	for (int i = 0; i < 6144; i++) {
 		if (i < 4096)
-			strncpy(buffer + i, "a", 1);
+			strncpy(buffer + i, "c", 1);
 		else
-			strncpy(buffer + i, "b", 1);
+			strncpy(buffer + i, "d", 1);
 	}
+
+    fs_write(fd, buffer, 6144);
+    int curblock = get_start_block(TEST_FILE2);
+    block_read(curblock, result_buf);
+    printf("Test Write 2 (no offset): %s\n", result_buf);
+    curblock = FAT[curblock];
+    block_read(curblock, result_buf);
+    printf("Test Write 2 (no offset) second block: %s\n", result_buf);
+
+
 }
 
+//Test: writing more than one block + offset 
 void test_write3() {
-	int fd = fs_open(TEST_FILE1);
-	char* buffer = malloc(6144);
+	int fd = fs_open(TEST_FILE2);
+	char* buffer = malloc(BLOCK_SIZE*3);
+	char* result_buf = malloc(BLOCK_SIZE);
+
+	for (int i = 0; i < 6144; i++) {
+		if (i < 4096)
+			strncpy(buffer + i, "c", 1);
+		else
+			strncpy(buffer + i, "d", 1);
+	}
+
+    fs_write(fd, buffer, 6144);
+
+    for (int i = 0; i < BLOCK_SIZE*3; i++) {
+		if (i < 4096)
+			strncpy(buffer + i, "e", 1);
+		else
+			strncpy(buffer + i, "f", 1);
+	}
+    
+    int curblock = FDS[fd].startblock;
+    fs_write(fd, buffer, BLOCK_SIZE*3);
+    block_read(curblock, result_buf);
+    printf("Test Write 3 (offset e&f): %s\n", result_buf);
+    while(curblock>=0){
+        curblock = FAT[curblock];
+        if (curblock < 0) continue;
+        block_read(curblock, result_buf);
+        printf("Test Write 3 (no offset) %d block: %s\n",curblock, result_buf);
+    }
+
+    free(buffer);
+    free(result_buf);
 }
 
+// test extreme edge case
 void test_write4() {
 	int fd = fs_open(TEST_FILE1);
-	char* buffer = malloc(6144);
+	char* buffer = malloc(BLOCK_SIZE);
+	char* result_buf = malloc(BLOCK_SIZE);
+
+    int status = fs_write(fd, buffer, 0);
+    block_read(FDS[fd].startblock, result_buf);
+    printf("Test Write 4: %s\n", result_buf);
+    printf("Test Write 4 Success: %d\n", status);
+
+    fs_close(fd);
+
+    status = fs_write(fd, buffer, BLOCK_SIZE);
+    printf("Test Write 4 Success: %d (Fd Closed)\n", status);
+
+    free(buffer);
+    free(result_buf);
+}
+
+// test extreme edge case
+void test_read1() {
+	int fd = fs_open(TEST_FILE1);
+	char* result_buf = malloc(BLOCK_SIZE);
+
+    fs_read(fd, result_buf, BLOCK_SIZE);
+    printf("Test Read 1: %s\n", result_buf);
+
+    memset(result_buf, 0, BLOCK_SIZE);
+    fs_read(fd, result_buf, BLOCK_SIZE);
+    printf("Test Read 1: %s\n", result_buf);
+    free(result_buf);
 }
 
 int main(){
@@ -75,8 +154,15 @@ int main(){
 	mount_fs(DISK_TITLE);
 
 	fs_create(TEST_FILE1);
-	fs_create("bye.txt");
-	fs_create("checkstringlargerthan15");
+    fs_create(TEST_FILE2);
+
+    test_write1();
+    // test_write2();
+    // test_write3();
+    // test_write4();
+    test_read1();
+    printFAT(10);
+    printFDS(10);
 
 	// int fd1 = fs_open("hello.txt");
 	// int fd2 = fs_open("hello.txt");
