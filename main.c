@@ -7,6 +7,8 @@
 #define DISK_TITLE "disk.txt"
 #define TEST_FILE1 "hello1.txt"
 #define TEST_FILE2 "hello2.txt"
+#define TEST_FILE3 "hello3.txt"
+
 
 void printFAT(int entries){
     for(int i = 0 ; i<entries; i++){
@@ -29,8 +31,7 @@ void printFDS(int entries){
 
 // Test: write < 1 block + no offset
 // Test: appending to a block (no overflow) + offset
-void test_write1() {
-	int fd = fs_open(TEST_FILE1);
+void test_write1(int fd) {
 	char* buffer = malloc(4096);
     char* result_buf = malloc(4096);
 	for (int i = 0; i < 4096; i++) {
@@ -50,8 +51,7 @@ void test_write1() {
 }
 
 //Test: writing more than one block + no offset
-void test_write2() {
-	int fd = fs_open(TEST_FILE2);
+void test_write2(int fd) {
 	char* buffer = malloc(6144);
 	char* result_buf = malloc(6144);
 
@@ -72,8 +72,7 @@ void test_write2() {
 }
 
 //Test: writing more than one block + offset 
-void test_write3() {
-	int fd = fs_open(TEST_FILE2);
+void test_write3(int fd) {
 	char* buffer = malloc(BLOCK_SIZE*3);
 	char* result_buf = malloc(BLOCK_SIZE);
 
@@ -109,8 +108,7 @@ void test_write3() {
 }
 
 // test extreme edge case
-void test_write4() {
-	int fd = fs_open(TEST_FILE1);
+void test_write4(int fd) {
 	char* buffer = malloc(BLOCK_SIZE);
 	char* result_buf = malloc(BLOCK_SIZE);
 
@@ -129,8 +127,7 @@ void test_write4() {
 }
 
 // test read entire block
-void test_read1() {
-	int fd = fs_open(TEST_FILE1);
+void test_read1(int fd) {
 	char* result_buf = malloc(BLOCK_SIZE);
 
     fs_read(fd, result_buf, BLOCK_SIZE);
@@ -146,8 +143,7 @@ void test_read1() {
 }
 
 // test read one and half a block
-void test_read2() {
-	int fd = fs_open(TEST_FILE2);
+void test_read2(int fd) {
 	char* result_buf = malloc(BLOCK_SIZE);
 
     fs_read(fd, result_buf, 2048);
@@ -163,60 +159,52 @@ void test_read2() {
     free(result_buf);
 }
 
+void test_seek1(int fd){
+	char* buffer = malloc(15);
+	 
+	strncpy(buffer, "gggggggggg", 10);
+	fs_write(fd, buffer, 10);
+
+	int fd2 = fs_open(TEST_FILE3);
+	fs_lseek(fd2, fs_get_filesize(fd));
+	strncpy(buffer, "h", 1);
+	fs_write(fd2, buffer, 1);
+
+	memset(buffer, 0, 15);
+	fs_lseek(fd2, -11);
+	fs_read(fd2, buffer, 11);
+    printf("Test Seek 1: %s\n", buffer);
+	
+}
+
 int main(){
     make_fs(DISK_TITLE);
 	mount_fs(DISK_TITLE);
 
 	fs_create(TEST_FILE1);
     fs_create(TEST_FILE2);
+    fs_create(TEST_FILE3);
+    int fd1 = fs_open(TEST_FILE1);
+    int fd2 = fs_open(TEST_FILE2);
+    int fd3 =  fs_open(TEST_FILE3);
 
-    // test_write1();
-    test_write2();
-    // test_write3();
-    // test_write4();
-    // test_read1();
-    test_read2();
+
+    test_write1(fd1);
+    test_write2(fd2);
+    // test_write3(fd2);
+    // test_write4(fd2);
+    // test_read1(fd1);
+    // test_read2(fd2);
+    test_seek1(fd3);
     printFAT(10);
     printFDS(10);
     printDirectory(10);
 
-	// int fd1 = fs_open("hello.txt");
-	// int fd2 = fs_open("hello.txt");
-
-
-	// fs_write(fd1, buffer, 6144);
-
-	// memset(buffer, 0, 6144);
-	// block_read(0, buffer);
-	// printf("block string: %s\n", buffer);
-	// printf("FAT: %d\n", FAT[0]);
-
-	// memset(buffer, 0, 6144);
-	// block_read(FAT[0], buffer);
-	// printf("block string: %s\n", buffer);
-
-	// //add cs
-	// for(int i = 0; i<15; i++){
-	// 	strncpy(buffer+i, "c", 1);
-	// }
-
-	// printf("FD 0: %d, %d\n", FDS[0].startblock, FDS[0].offset);
-
-	// fs_write(fd1, buffer, 15);
-	// printf("FD 0: %d, %d\n", FDS[0].startblock, FDS[0].offset);
-
-	// memset(buffer, 0, 6144);
-	// block_read(FAT[0], buffer);
-	// printf("block string: %s\n", buffer);
-
-	// memset(buffer, 0, 6144);
-	// fs_read(fd2, buffer, 4096);
-	// printf("first string: %s\n", buffer);
-
-	// memset(buffer, 0, 6144);
-	// fs_read(fd2, buffer, 6144 - 4096);
 	// printf("seocnd string: %s\n", buffer);
 	
+	printf("file size hello1: %d\n", fs_get_filesize(fd1));
+	printf("file size hello2: %d\n", fs_get_filesize(fd2));
+
 
 
 	// fs_delete("hello.txt");

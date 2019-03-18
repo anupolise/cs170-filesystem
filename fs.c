@@ -213,6 +213,7 @@ int fs_read(int filedes, void *buf, size_t nbyte) {
 	void* buf_block = buf;
 	void* temp_buf = malloc(BLOCK_SIZE);
 
+	int totalread = 0;
 	int byteread = BLOCK_SIZE - FDS[filedes].offset;
 	if (nbyte < byteread) byteread = nbyte;
 
@@ -236,6 +237,7 @@ int fs_read(int filedes, void *buf, size_t nbyte) {
 		memcpy(buf_block, temp_buf + currOffset, byteread);
 
 		// set counters and offsets for next iteration
+		totalread += byteread;
 		nbyte -= byteread;
 		buf_block = buf_block + byteread;
 
@@ -257,6 +259,7 @@ int fs_read(int filedes, void *buf, size_t nbyte) {
 		FDS[filedes].startblock = currblock;
 	}
 
+	return totalread;
 }
 
 int fs_write(int filedes, void *buf, size_t nbyte) {
@@ -276,6 +279,7 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 	int currblock = FDS[filedes].startblock;
 	int currOffset = FDS[filedes].offset;
 	int done = 0;
+	int totalwrite = nbyte;
 
 	while (!done) {
 		memset(temp_buf, 0, BLOCK_SIZE);
@@ -323,9 +327,55 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 	if (FAT[currblock] < 0)
 		DIR[fileindex].finaloffset = (DIR[fileindex].finaloffset > FDS[filedes].offset) ? DIR[fileindex].finaloffset : FDS[filedes].offset;
 
+	return totalwrite;
+}
+
+
+int fs_get_filesize(int filedes) {
+
+	int fileindex = -1;
+	for (int i = 0; i < FILE_COUNT; i++)
+		if (DIR[i].filename == FDS[filedes].filename)
+			fileindex = i;
+	
+	int currblock = DIR[fileindex].startblock;
+	int totalbytes = 0;
+	while(FAT[currblock] > 0){
+		totalbytes+=BLOCK_SIZE;
+		currblock = FAT[currblock];
+	}
+
+	totalbytes += DIR[fileindex].finaloffset;
+	return totalbytes;
+}
+
+int fs_lseek(int filedes, off_t offset) {
+	int fileindex = -1;
+	for (int i = 0; i < FILE_COUNT; i++)
+		if (DIR[i].filename == FDS[filedes].filename)
+			fileindex = i;
+	
+	int currblock = FDS[filedes].startblock;
+	offset+= FDS[filedes].offset;
+
+	while(FAT[currblock] > 0){
+		if(offset < BLOCK_SIZE)
+			break;
+		offset -= BLOCK_SIZE;
+		currblock = FAT[currblock];
+	}
+
+	if(FAT[currblock] < 0 && offset > DIR[fileindex].finaloffset)
+		return -1;
+
+	FDS[filedes].startblock = currblock;
+	FDS[filedes].offset = offset;
 	return 0;
 }
 
+int fs_truncate(int fildes, off_t length) {
+	return -1;
+}
 
 
 // get string length
@@ -343,7 +393,7 @@ int get_start_block(char* filename) {
 		if (DIR[i].filename != NULL && strcmp(DIR[i].filename, filename) == 0)
 			return DIR[i].startblock;
 
-	printf("File not exist.\n");
+	// printf("File not exist.\n");
 	return -1;
 }
 
@@ -355,6 +405,6 @@ int get_available_block() {
 		}
 	}
 
-	printf("No available block.\n");
+	// printf("No available block.\n");
 	return -1;
 }
