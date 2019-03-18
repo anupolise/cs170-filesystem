@@ -185,17 +185,17 @@ int main(){
     fs_create(TEST_FILE2);
     fs_create(TEST_FILE3);
     int fd1 = fs_open(TEST_FILE1);
-    int fd2 = fs_open(TEST_FILE2);
-    int fd3 =  fs_open(TEST_FILE3);
+    // int fd2 = fs_open(TEST_FILE2);
+    // int fd3 =  fs_open(TEST_FILE3);
 
 
     test_write1(fd1);
-    test_write2(fd2);
+    // test_write2(fd2);
     // test_write3(fd2);
     // test_write4(fd2);
     // test_read1(fd1);
     // test_read2(fd2);
-    test_seek1(fd3);
+    // test_seek1(fd3);
     printFAT(10);
     printFDS(10);
     printDirectory(10);
@@ -203,7 +203,7 @@ int main(){
 	// printf("seocnd string: %s\n", buffer);
 	
 	printf("file size hello1: %d\n", fs_get_filesize(fd1));
-	printf("file size hello2: %d\n", fs_get_filesize(fd2));
+	// printf("file size hello2: %d\n", fs_get_filesize(fd2));
 
 
 

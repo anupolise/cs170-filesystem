@@ -8,7 +8,7 @@ int make_fs(char *disk_name) {
 
 		// Metadata: set Directory values to default
 		for (int i = 0; i < FILE_COUNT; i++) {
-			DIR[i].filename = NULL;
+			DIR[i].filename[0] = '\0';
 			DIR[i].startblock = -1;
 			DIR[i].permission = 0;
 			DIR[i].finaloffset = 0;
@@ -31,6 +31,7 @@ int mount_fs(char *disk_name) {
 	// load DIR metadata
 	memset(buffer, 0, BLOCK_SIZE);
 	block_read(0, buffer);
+	printf("dir size %d\n", sizeof(DIR));
 	memcpy(DIR, buffer, sizeof(DIR));
 
 	// load FAT metadata
@@ -45,7 +46,7 @@ int mount_fs(char *disk_name) {
 		FDS[i].startblock = -1;
 		FDS[i].status = -1;
 		FDS[i].offset = -1;
-		FDS[i].filename = NULL;
+		FDS[i].filename[0] = '\0';
 	}
 
 	free(buffer);
@@ -73,17 +74,22 @@ int umount_fs(char *disk_name) {
 }
 
 int fs_open(char* filename) {
+	printf("fs_open 0\n");
 	int startblock = get_start_block(filename);
+	printf("fs_open 1\n");
 
 	// Error if file doesn't exists
 	if (startblock == -1) return -1;
+	printf("fs_open 2\n");
 
 	for (int i = 0; i < DESC_COUNT; i++) {
 		if (FDS[i].startblock == -1) {
+	printf("fs_open 3\n");
 			FDS[i].startblock = startblock;
 			FDS[i].offset = 0;
 			FDS[i].status = 0;
-			FDS[i].filename = filename;
+			strcpy(FDS[i].filename, filename);
+	printf("fs_open 4\n");
 			return i;
 		}
 	}
@@ -99,7 +105,7 @@ int fs_close(int fd) {
 	FDS[fd].startblock = -1;
 	FDS[fd].offset = -1;
 	FDS[fd].status = -1;
-	FDS[fd].filename = NULL;
+	FDS[fd].filename[0] = '\0';
 	return 0;
 }
 
@@ -113,7 +119,7 @@ int fs_create(char* filename) {
 			int available_block = get_available_block();
 			if (available_block == -1) return -1;
 
-			DIR[i].filename = filename;
+			strcpy(DIR[i].filename, filename);
 			DIR[i].startblock = available_block;
 			DIR[i].permission = 0;
 			DIR[i].finaloffset = 0;
@@ -355,8 +361,7 @@ int fs_lseek(int filedes, off_t offset) {
 		if (DIR[i].filename == FDS[filedes].filename)
 			fileindex = i;
 	
-	int currblock = FDS[filedes].startblock;
-	offset+= FDS[filedes].offset;
+	int currblock = DIR[fileindex].startblock;
 
 	while(FAT[currblock] > 0){
 		if(offset < BLOCK_SIZE)
@@ -389,9 +394,12 @@ int len(char* string) {
 
 // get start block of file
 int get_start_block(char* filename) {
-	for (int i = 0; i < FILE_COUNT; i++)
-		if (DIR[i].filename != NULL && strcmp(DIR[i].filename, filename) == 0)
+	// printf("startblock: %s\n", DIR[0]);
+	for (int i = 0; i < FILE_COUNT; i++) {
+		printf("filename: %s\n", DIR[i].filename);
+		if (strcmp(DIR[i].filename, filename) == 0)
 			return DIR[i].startblock;
+	}
 
 	// printf("File not exist.\n");
 	return -1;
