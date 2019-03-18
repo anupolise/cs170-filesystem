@@ -146,57 +146,127 @@ int fs_delete(char* filename) {
 	return 0;
 }
 
-int fs_read(int filedes, void *buf, size_t nbyte){
-	if(FDS[filedes].status == -1)
-		return -1;
+// int fs_read(int filedes, void *buf, size_t nbyte){
+// 	if(FDS[filedes].status == -1)
+// 		return -1;
 
-	void *bufptr = buf;
-	char* temp_buf = malloc(BLOCK_SIZE);
-	memset(temp_buf, 0, sizeof(temp_buf));
+// 	void *bufptr = buf;
+// 	char* temp_buf = malloc(BLOCK_SIZE);
+// 	memset(temp_buf, 0, sizeof(temp_buf));
 
-	if (FAT[FDS[filedes].startblock] == -2 && BLOCK_SIZE - FDS[filedes].offset == 0)
-		return -1;
 
-	// reading first block (starting offset)
-	if(FDS[filedes].offset != 0){
-		block_read(FDS[filedes].startblock, temp_buf);
+// 	// reading first block (starting offset)
+// 	if(FDS[filedes].offset != 0) {
+// 		if (FDS[filedes].offset == BLOCK_SIZE) {
+// 			if (FAT[FDS[filedes].startblock] == -2) return -1;
+// 			FDS[filedes].startblock = FAT[FDS[filedes].startblock];
+// 			FDS[filedes].offset = 0;
+// 		}
 
-		if (nbyte > BLOCK_SIZE - FDS[filedes].offset) {
-			memcpy(bufptr, temp_buf + FDS[filedes].offset, BLOCK_SIZE - FDS[filedes].offset);
-			nbyte = nbyte - (BLOCK_SIZE - FDS[filedes].offset);
+// 		block_read(FDS[filedes].startblock, temp_buf);
+
+// 		if (nbyte <= BLOCK_SIZE - FDS[filedes].offset) {
+// 			memcpy(bufptr, temp_buf + FDS[filedes].offset, nbyte);
+// 			FDS[filedes].offset = FDS[filedes].offset + nbyte;
+// 			return 0;
+// 		}
+
+// 		memcpy(bufptr, temp_buf + FDS[filedes].offset, BLOCK_SIZE - FDS[filedes].offset);
+// 		nbyte = nbyte - (BLOCK_SIZE - FDS[filedes].offset);
+// 		bufptr += BLOCK_SIZE - FDS[filedes].offset;
+
+// 		if (FDS[filedes].offset == BLOCK_SIZE) {
+// 			if (FAT[FDS[filedes].startblock] == -2) return -1;
+// 			FDS[filedes].startblock = FAT[FDS[filedes].startblock];
+// 			FDS[filedes].offset = 0;
+// 		}
+// 	}
+
+// 	// reading entire blocks
+// 	while(nbyte > BLOCK_SIZE && FDS[filedes].startblock != -1 && FDS[filedes].startblock != -2){
+// 		block_read(FDS[filedes].startblock, bufptr);
+// 		nbyte -= BLOCK_SIZE;
+// 		FDS[filedes].startblock = FAT[FDS[filedes].startblock];
+// 		bufptr += BLOCK_SIZE;
+// 	}
+
+// 	// reading last block (up to nbyte)
+// 	memset(temp_buf, 0, sizeof(temp_buf));
+// 	if(FDS[filedes].startblock >= 0){
+// 		block_read(FDS[filedes].startblock, temp_buf);
+// 		memcpy(bufptr, temp_buf, nbyte);
+// 		FDS[filedes].offset = nbyte;
+// 	}
+
+// 	free(temp_buf);
+// }
+
+int fs_read(int filedes, void *buf, size_t nbyte) {
+	if (FDS[filedes].status == -1) return -1;
+
+	int fileindex = -1;
+	for (int i = 0; i < FILE_COUNT; i++)
+		if (DIR[i].filename == FDS[filedes].filename)
+			fileindex = i;
+	if (fileindex < 0) return -1;
+
+	void* buf_block = buf;
+	void* temp_buf = malloc(BLOCK_SIZE);
+
+	int byteread = BLOCK_SIZE - FDS[filedes].offset;
+	if (nbyte < byteread) byteread = nbyte;
+
+	int currblock = FDS[filedes].startblock;
+	int currOffset = FDS[filedes].offset;
+	int done = 0;
+
+	while (!done) {
+		memset(temp_buf, 0, BLOCK_SIZE);
+
+		// handle last block
+		if (FAT[currblock] < 0) {
+			if (nbyte > DIR[fileindex].finaloffset - currOffset) {
+				nbyte = DIR[fileindex].finaloffset - currOffset;
+				byteread = nbyte;
+			}
+		}
+
+		// read current block and combine new buffer data
+		block_read(currblock, temp_buf);
+		memcpy(buf_block, temp_buf + currOffset, byteread);
+
+		// set counters and offsets for next iteration
+		nbyte -= byteread;
+		buf_block = buf_block + byteread;
+
+		if (nbyte >= BLOCK_SIZE) {
+			byteread = BLOCK_SIZE;
 		}
 		else {
-			memcpy(bufptr, temp_buf + FDS[filedes].offset, nbyte);
-			FDS[filedes].offset = FDS[filedes].offset + nbyte;
-			return 0;
+			FDS[filedes].offset = currOffset + byteread;
+			byteread = nbyte;
 		}
 
-		nbyte = BLOCK_SIZE - nbyte;
-		bufptr += BLOCK_SIZE - FDS[filedes].offset;
+		currOffset = 0;
+		if (byteread == 0) {
+			done = 1;
+			continue;
+		}
+
+		currblock = FAT[currblock];
+		FDS[filedes].startblock = currblock;
 	}
 
-	// reading entire blocks
-	while(nbyte > BLOCK_SIZE && FDS[filedes].startblock != -1 && FDS[filedes].startblock != -2){
-		block_read(FDS[filedes].startblock, bufptr);
-		nbyte -= BLOCK_SIZE;
-		FDS[filedes].startblock = FAT[FDS[filedes].startblock];
-		bufptr += BLOCK_SIZE;
-	}
-
-	// reading last block (up to nbyte)
-	memset(temp_buf, 0, sizeof(temp_buf));
-	if(FDS[filedes].startblock >= 0){
-		block_read(FDS[filedes].startblock, temp_buf);
-		memcpy(bufptr, temp_buf, nbyte);
-		FDS[filedes].offset = nbyte;
-	}
-
-	free(temp_buf);
 }
-
 
 int fs_write(int filedes, void *buf, size_t nbyte) {
 	if (FDS[filedes].status == -1) return -1;
+
+	int fileindex = -1;
+	for (int i = 0; i < FILE_COUNT; i++)
+		if (DIR[i].filename == FDS[filedes].filename)
+			fileindex = i;
+	if (fileindex < 0) return -1;
 
 	void* buf_block = buf;
 	void* temp_buf = malloc(BLOCK_SIZE);
@@ -242,6 +312,7 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 			if (currblock == -1) return -1;
 			FAT[temp] = currblock;
 			FAT[currblock] = -2;
+			DIR[fileindex].finaloffset = 0;
 		}
 		else {
 			currblock = FAT[currblock];
@@ -249,8 +320,13 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 	}
 
 	FDS[filedes].startblock = currblock;
+	if (FAT[currblock] < 0)
+		DIR[fileindex].finaloffset = (DIR[fileindex].finaloffset > FDS[filedes].offset) ? DIR[fileindex].finaloffset : FDS[filedes].offset;
+
 	return 0;
 }
+
+
 
 // get string length
 int len(char* string) {

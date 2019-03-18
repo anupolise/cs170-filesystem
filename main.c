@@ -41,11 +41,6 @@ void test_write1() {
     }
 
     fs_write(fd, buffer + 10, 4086);
-    block_read(0, result_buf);
-    printf("Test Write 1 our buf: %s\n", buffer);
-    printf("Test Write 1 block buf: %s\n", result_buf);
-
-
 	fs_write(fd, buffer, 10);
     block_read(0, result_buf);
     printf("Test Write 1: %s\n", result_buf);
@@ -74,8 +69,6 @@ void test_write2() {
     curblock = FAT[curblock];
     block_read(curblock, result_buf);
     printf("Test Write 2 (no offset) second block: %s\n", result_buf);
-
-
 }
 
 //Test: writing more than one block + offset 
@@ -135,7 +128,7 @@ void test_write4() {
     free(result_buf);
 }
 
-// test extreme edge case
+// test read entire block
 void test_read1() {
 	int fd = fs_open(TEST_FILE1);
 	char* result_buf = malloc(BLOCK_SIZE);
@@ -144,8 +137,29 @@ void test_read1() {
     printf("Test Read 1: %s\n", result_buf);
 
     memset(result_buf, 0, BLOCK_SIZE);
+    printFDS(10);
+
     fs_read(fd, result_buf, BLOCK_SIZE);
     printf("Test Read 1: %s\n", result_buf);
+
+    free(result_buf);
+}
+
+// test read one and half a block
+void test_read2() {
+	int fd = fs_open(TEST_FILE2);
+	char* result_buf = malloc(BLOCK_SIZE);
+
+    fs_read(fd, result_buf, 2048);
+    printf("Test Read 2: %s\n", result_buf);
+
+    // printFDS(10);
+
+    memset(result_buf, 0, BLOCK_SIZE);
+
+    fs_read(fd, result_buf, BLOCK_SIZE);
+    printf("Test Read 2: %s\n", result_buf);
+
     free(result_buf);
 }
 
@@ -156,13 +170,15 @@ int main(){
 	fs_create(TEST_FILE1);
     fs_create(TEST_FILE2);
 
-    test_write1();
-    // test_write2();
+    // test_write1();
+    test_write2();
     // test_write3();
     // test_write4();
-    test_read1();
+    // test_read1();
+    test_read2();
     printFAT(10);
     printFDS(10);
+    printDirectory(10);
 
 	// int fd1 = fs_open("hello.txt");
 	// int fd2 = fs_open("hello.txt");
