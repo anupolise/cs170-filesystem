@@ -37,7 +37,6 @@ int main() {
 	char data[] = "This is my data";
 	int len = strlen(data);
 	ret = fs_write(fildes,data,len);
-
 	if(ret != len) {
 		printf("ERROR: fs_write failed to write correct number of bytes\n");
 	}
@@ -79,9 +78,6 @@ int main() {
 		printf("ERROR: umount_fs failed\n");
 	}
 
-	// ret = mount_fs(disk_name);
-	// printDirectory(10);
-	// printFAT(10);
 	// done!
 	return 0;
 }

@@ -9,7 +9,7 @@ int main() {
 	char disk_name[] = "fs1";
 	char file_name1[] = "file1";
 	char file_name2[] = "file2";
-	int i = 0;
+
 	// Mount filesystem from basic_fs_01.c
 	ret = mount_fs(disk_name);
 	if(ret != 0) {
