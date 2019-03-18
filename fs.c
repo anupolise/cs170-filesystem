@@ -159,9 +159,12 @@ int fs_delete(char* filename) {
 	char strbuf[15];
 	strcpy(strbuf, filename);
 
-	for (int i = 0; i < DESC_COUNT; i++)
-		if (FDS[i].filename[0] != '\0'&& strcmp(FDS[i].filename, strbuf) == 0)
+	for (int i = 0; i < DESC_COUNT; i++){
+		if (strcmp(FDS[i].filename, strbuf) == 0)
 			return -1;
+
+	}
+		
 
 	int nextblock = get_start_block(filename); 
 	if (nextblock == -1)
@@ -180,60 +183,6 @@ int fs_delete(char* filename) {
 	return 0;
 }
 
-// int fs_read(int filedes, void *buf, size_t nbyte){
-// 	if(FDS[filedes].status == -1)
-// 		return -1;
-
-// 	void *bufptr = buf;
-// 	char* temp_buf = malloc(BLOCK_SIZE);
-// 	memset(temp_buf, 0, sizeof(temp_buf));
-
-
-// 	// reading first block (starting offset)
-// 	if(FDS[filedes].offset != 0) {
-// 		if (FDS[filedes].offset == BLOCK_SIZE) {
-// 			if (FAT[FDS[filedes].startblock] == -2) return -1;
-// 			FDS[filedes].startblock = FAT[FDS[filedes].startblock];
-// 			FDS[filedes].offset = 0;
-// 		}
-
-// 		block_read(FDS[filedes].startblock, temp_buf);
-
-// 		if (nbyte <= BLOCK_SIZE - FDS[filedes].offset) {
-// 			memcpy(bufptr, temp_buf + FDS[filedes].offset, nbyte);
-// 			FDS[filedes].offset = FDS[filedes].offset + nbyte;
-// 			return 0;
-// 		}
-
-// 		memcpy(bufptr, temp_buf + FDS[filedes].offset, BLOCK_SIZE - FDS[filedes].offset);
-// 		nbyte = nbyte - (BLOCK_SIZE - FDS[filedes].offset);
-// 		bufptr += BLOCK_SIZE - FDS[filedes].offset;
-
-// 		if (FDS[filedes].offset == BLOCK_SIZE) {
-// 			if (FAT[FDS[filedes].startblock] == -2) return -1;
-// 			FDS[filedes].startblock = FAT[FDS[filedes].startblock];
-// 			FDS[filedes].offset = 0;
-// 		}
-// 	}
-
-// 	// reading entire blocks
-// 	while(nbyte > BLOCK_SIZE && FDS[filedes].startblock != -1 && FDS[filedes].startblock != -2){
-// 		block_read(FDS[filedes].startblock, bufptr);
-// 		nbyte -= BLOCK_SIZE;
-// 		FDS[filedes].startblock = FAT[FDS[filedes].startblock];
-// 		bufptr += BLOCK_SIZE;
-// 	}
-
-// 	// reading last block (up to nbyte)
-// 	memset(temp_buf, 0, sizeof(temp_buf));
-// 	if(FDS[filedes].startblock >= 0){
-// 		block_read(FDS[filedes].startblock, temp_buf);
-// 		memcpy(bufptr, temp_buf, nbyte);
-// 		FDS[filedes].offset = nbyte;
-// 	}
-
-// 	free(temp_buf);
-// }
 
 int fs_read(int filedes, void *buf, size_t nbyte) {
 	if (FDS[filedes].status == -1) return -1;

@@ -8,7 +8,7 @@
 #define TEST_FILE1 "hello1.txt"
 #define TEST_FILE2 "hello2.txt"
 #define TEST_FILE3 "hello3.txt"
-
+#define TEST_FILE4 "hello4.txt"
 
 void printFAT(int entries){
     for(int i = 0 ; i<entries; i++){
@@ -185,21 +185,31 @@ int main(){
     fs_create(TEST_FILE2);
     fs_create(TEST_FILE3);
     int fd1 = fs_open(TEST_FILE1);
-    // int fd2 = fs_open(TEST_FILE2);
+    int fd2 = fs_open(TEST_FILE2);
+    int fd1_1 =  fs_open(TEST_FILE1);
     // int fd3 =  fs_open(TEST_FILE3);
 
 
-    test_write1(fd1);
+    // test_write1(fd1);
     // test_write2(fd2);
-    // test_write3(fd2);
+    test_write3(fd2);
     // test_write4(fd2);
     // test_read1(fd1);
     // test_read2(fd2);
     // test_seek1(fd3);
+    //fs_close(fd2);
+    fs_close(fd1);
+
     printFAT(10);
     printFDS(10);
     printDirectory(10);
-
+    
+   // int res = fs_delete(TEST_FILE1);
+    int res =  fs_truncate(fd2,4*4096+100);
+    printf("\n\n\n restult: %d \n\n\n",res);
+    printFAT(10);
+    printFDS(10);
+    printDirectory(10);
 	// printf("seocnd string: %s\n", buffer);
 	
 	printf("file size hello1: %d\n", fs_get_filesize(fd1));
