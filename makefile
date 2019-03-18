@@ -1,4 +1,4 @@
-all: compile test
+all: compile
 
 compile:
 	gcc -c -o disk.o disk.c -g

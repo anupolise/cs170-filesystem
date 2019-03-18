@@ -140,8 +140,9 @@ int fs_create(char* filename) {
 	if (len(filename) > 15 || get_start_block(filename) != -1)
 		return -1;
 
+
 	for (int i = 0; i < FILE_COUNT; i++) {
-		if (DIR[i].filename[0] == '\0') {
+		if (DIR[i].startblock == -1) {
 			int available_block = get_available_block();
 			if (available_block == -1) return -1;
 
@@ -163,7 +164,6 @@ int fs_delete(char* filename) {
 	for (int i = 0; i < DESC_COUNT; i++){
 		if (strcmp(FDS[i].filename, strbuf) == 0)
 			return -1;
-
 	}
 		
 	int nextblock = get_start_block(filename); 
@@ -180,12 +180,23 @@ int fs_delete(char* filename) {
 		FAT[temp] = -1;
 	}
 
+
+	int fileindex = -1;
+	for (int i = 0; i < FILE_COUNT; i++)
+		if (strcmp(DIR[i].filename, filename) == 0)
+			fileindex = i;
+	if (fileindex < 0) return -1;
+	DIR[fileindex].filename[0] = '\0';
+	DIR[fileindex].startblock = -1;
+	DIR[fileindex].permission = 0;
+	DIR[fileindex].finaloffset = 0;
+
 	return 0;
 }
 
 
 int fs_read(int filedes, void *buf, size_t nbyte) {
-	if (FDS[filedes].status == -1) return -1;
+	if (filedes < 0 || filedes >= 32 || FDS[filedes].status == -1) return -1;
 
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
@@ -246,7 +257,7 @@ int fs_read(int filedes, void *buf, size_t nbyte) {
 }
 
 int fs_write(int filedes, void *buf, size_t nbyte) {
-	if (FDS[filedes].status == -1) return -1;
+	if (filedes < 0 || filedes >= 32 || FDS[filedes].status == -1) return -1;
 
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
@@ -262,7 +273,7 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 	int currblock = FDS[filedes].startblock;
 	int currOffset = FDS[filedes].offset;
 	int done = 0;
-	int totalwrite = nbyte;
+	int totalwrite = 0;
 
 	while (!done) {
 		memset(temp_buf, 0, BLOCK_SIZE);
@@ -275,6 +286,7 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 		block_write(currblock, temp_buf);
 
 		// set counters and offsets for next iteration
+		totalwrite += bytewrite;
 		nbyte -= bytewrite;
 		buf_block = buf_block + bytewrite;
 
@@ -296,7 +308,7 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 		if (FAT[currblock] < 0) {
 			int temp  = currblock;
 			currblock = get_available_block();
-			if (currblock == -1) return -1;
+			if (currblock == -1) return totalwrite;
 			FAT[temp] = currblock;
 			FAT[currblock] = -2;
 			DIR[fileindex].finaloffset = 0;
@@ -315,7 +327,7 @@ int fs_write(int filedes, void *buf, size_t nbyte) {
 
 
 int fs_get_filesize(int filedes) {
-	if (FDS[filedes].status == -1) return -1;
+	if (filedes < 0 || filedes >= 32 || FDS[filedes].status == -1) return -1;
 	
 	int fileindex = -1;
 	for (int i = 0; i < FILE_COUNT; i++)
@@ -334,7 +346,7 @@ int fs_get_filesize(int filedes) {
 }
 
 int fs_lseek(int filedes, off_t offset) {
-	if (FDS[filedes].status == -1) return -1;
+	if (filedes < 0 || filedes >= 32 || FDS[filedes].status == -1) return -1;
 	if(offset<0) return -1;
 
 	int fileindex = -1;
@@ -360,7 +372,7 @@ int fs_lseek(int filedes, off_t offset) {
 }
 
 int fs_truncate(int filedes, off_t length) {
-	if (FDS[filedes].status == -1) return -1;
+	if (filedes < 0 || filedes >= 32 || FDS[filedes].status == -1) return -1;
     
     //if length greater than file size, jump to end 
     if(length > fs_get_filesize(filedes)){
